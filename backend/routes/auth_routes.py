@@ -6,3 +6,4 @@ auth_bp = Blueprint('auth', __name__)
 
 auth_bp.route('/register', methods=['POST'])(AuthController.register)
 auth_bp.route('/login',    methods=['POST'])(AuthController.login)
+auth_bp.route('/profile',  methods=['GET'])(AuthController.get_profile)  # ← new

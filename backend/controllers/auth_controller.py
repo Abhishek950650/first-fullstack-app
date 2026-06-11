@@ -1,6 +1,46 @@
 # controllers/auth_controller.py
 from flask import request, jsonify
 from models.user_model import UserModel
+from config import JWT_SECRET, JWT_EXPIRY
+from functools import wraps
+import jwt
+import datetime
+
+# ── Token verify decorator ──────────────────────────────
+def token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = None
+
+        # Header se token lo
+        if 'Authorization' in request.headers:
+            auth_header = request.headers['Authorization']
+            token = auth_header.split(' ')[1]  # "Bearer <token>"
+
+        if not token:
+            return jsonify({
+                'success': False,
+                'message': 'Token missing'
+            }), 401
+
+        try:
+            # Token decode karo
+            data = jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
+            current_user = data
+        except jwt.ExpiredSignatureError:
+            return jsonify({
+                'success': False,
+                'message': 'Token expired — please login again'
+            }), 401
+        except jwt.InvalidTokenError:
+            return jsonify({
+                'success': False,
+                'message': 'Invalid token'
+            }), 401
+
+        return f(current_user, *args, **kwargs)
+    return decorated
+
 
 class AuthController:
 
@@ -41,10 +81,6 @@ class AuthController:
 
     @staticmethod
     def login():
-        import jwt
-        import datetime
-        from config import JWT_SECRET, JWT_EXPIRY
-
         data     = request.get_json()
         email    = data.get('email', '').strip()
         password = data.get('password', '').strip()
@@ -91,5 +127,17 @@ class AuthController:
                 'id'   : user['id'],
                 'name' : user['name'],
                 'email': user['email']
+            }
+        }), 200
+    
+    @staticmethod
+    @token_required
+    def get_profile(current_user):
+        return jsonify({
+            'success': True,
+            'user'   : {
+                'id'   : current_user['user_id'],
+                'name' : current_user['name'],
+                'email': current_user['email']
             }
         }), 200
