@@ -1,5 +1,5 @@
 # routes/auth_routes.py
-from flask import Blueprint
+from flask import Blueprint  # type: ignore[import]
 from controllers.auth_controller import AuthController
 
 auth_bp = Blueprint('auth', __name__)

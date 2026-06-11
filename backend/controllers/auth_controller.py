@@ -1,8 +1,8 @@
 # controllers/auth_controller.py
-from flask import request, jsonify
 from models.user_model import UserModel
 from config import JWT_SECRET, JWT_EXPIRY
 from functools import wraps
+from flask import request, jsonify
 import jwt
 import datetime
 
