@@ -1,36 +1,56 @@
 // src/app/interceptors/crypto.interceptor.ts
-import { HttpInterceptorFn, HttpRequest, HttpHandlerFn } from '@angular/common/http';
+import {
+  HttpInterceptorFn,
+  HttpRequest,
+  HttpHandlerFn,
+  HttpEvent,
+  HttpResponse
+} from '@angular/common/http';
 import { inject } from '@angular/core';
+import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { EncryptionService } from '../services/encryption';
+import { environment } from '../../environments/environment';
 
 export const cryptoInterceptor: HttpInterceptorFn = (
   req: HttpRequest<any>,
   next: HttpHandlerFn
-) => {
-  const encService = inject(EncryptionService);
+): Observable<HttpEvent<any>> => {
 
-  // ── Step 1: Request body encrypt karo ──────────────
-  let encryptedReq = req;
+  const encService = inject(EncryptionService);
+  const isEncryption = environment.enableEncryption;
+
+  // ── Request ────────────────────────────────────────
+  let outgoingReq = req;
 
   if (req.body && req.method !== 'GET') {
-    const encryptedBody = encService.encrypt(req.body);
 
-    encryptedReq = req.clone({
-      body: { data: encryptedBody }   // { data: "encrypted..." }
-    });
+    if (isEncryption) {
+      // Production → encrypted body bhejo
+      const encryptedBody = encService.encrypt(req.body);
+      outgoingReq = req.clone({
+        body: { data: encryptedBody }
+      });
+    } else {
+      // Development → plain body bhejo as-is
+      outgoingReq = req.clone({ body: req.body });
+    }
   }
 
-  // ── Step 2: Response decrypt karo ──────────────────
-  return next(encryptedReq).pipe(
-    map((event: any) => {
+  // ── Response ───────────────────────────────────────
+  return next(outgoingReq).pipe(
+    map((event: HttpEvent<any>) => {
 
-      // HTTP Response aaya hai
-      if (event?.body?.data) {
-        const decryptedBody = encService.decrypt(event.body.data);
+      if (event instanceof HttpResponse) {
 
-        // Response body replace karo decrypted data se
-        return event.clone({ body: decryptedBody });
+        if (isEncryption && event.body?.data) {
+          // Production → decrypt karo
+          const decrypted = encService.decrypt(event.body.data);
+          return event.clone({ body: decrypted });
+        }
+
+        // Development → body as-is return karo
+        return event;
       }
 
       return event;

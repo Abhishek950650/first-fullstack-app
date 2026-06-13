@@ -2,65 +2,67 @@
 from flask import request, jsonify, g
 from functools import wraps
 from utils.encryption import encrypt_data, decrypt_data
+from config import ENABLE_ENCRYPTION
 
 
 def decrypt_request(f):
-    """
-    Request body decrypt karo before controller
-    
-    """
     @wraps(f)
     def decorated(*args, **kwargs):
-        # GET requests mein body nahi hota
         if request.method == 'GET':
             return f(*args, **kwargs)
 
         raw = request.get_json()
 
-        # Encrypted data check karo
-        if not raw or 'data' not in raw:
+        if not raw:
             return jsonify({
                 'success': False,
-                'message': 'Invalid request format — encrypted data expected'
+                'message': 'Invalid request'
             }), 400
 
-        try:
-            # Decrypt karo aur g object mein store karo
-            # g = Flask ka global request context object
-            g.decrypted_body = decrypt_data(raw['data'])
-        except Exception as e:
-            return jsonify({
-                'success': False,
-                'message': 'Request decryption failed'
-            }), 400
+        if ENABLE_ENCRYPTION:
+            # Production → encrypted data expect karo
+            if 'data' not in raw:
+                return jsonify({
+                    'success': False,
+                    'message': 'Encrypted data expected'
+                }), 400
+            try:
+                g.decrypted_body = decrypt_data(raw['data'])
+                # print(f"[PROD] Decrypted Request: {g.decrypted_body}")
+            except Exception:
+                return jsonify({
+                    'success': False,
+                    'message': 'Decryption failed'
+                }), 400
+        else:
+            # Development → plain JSON as-is use karo
+            g.decrypted_body = raw
+            # print(f"[DEV]  Plain Request: {g.decrypted_body}")
 
         return f(*args, **kwargs)
     return decorated
 
 
 def encrypt_response(f):
-    """
-    Response encrypt karke bhejo
-    
-    """
     @wraps(f)
     def decorated(*args, **kwargs):
-        # Controller ka response lo
-        response      = f(*args, **kwargs)
+        response = f(*args, **kwargs)
 
-        # Flask tuple return karta hai (response_dict, status_code)
         if isinstance(response, tuple):
             resp_data, status_code = response
         else:
             resp_data, status_code = response, 200
 
-        # jsonify object se dict nikalo
         actual_data = resp_data.get_json()
 
-        # Encrypt karo
-        encrypted = encrypt_data(actual_data)
-
-        # Encrypted format mein bhejo
-        return jsonify({'data': encrypted}), status_code
+        if ENABLE_ENCRYPTION:
+            # Production → encrypt karke bhejo
+            encrypted = encrypt_data(actual_data)
+            # print(f"[PROD] Encrypted Response: {encrypted[:30]}...")
+            return jsonify({'data': encrypted}), status_code
+        else:
+            # Development → plain JSON bhejo
+            # print(f"[DEV]  Plain Response: {actual_data}")
+            return jsonify(actual_data), status_code
 
     return decorated
