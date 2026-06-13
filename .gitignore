@@ -1,5 +1,13 @@
+# ── Python Backend ──────────────────────────────
 backend/venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/**/*.pyc
+backend/.env
+backend/config.py
+# ── Angular Frontend ─────────────────────────────
 frontend/node_modules/
 frontend/dist/
-backend/__pycache__/
-backend/config.py
+frontend/src/environments/environment.ts
+frontend/src/environments/environment.development.ts
+frontend/src/environments/environment.prod.ts
