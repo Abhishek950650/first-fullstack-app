@@ -1,5 +1,5 @@
 # controllers/auth_controller.py
-from utils.encryption import encrypt_payload, decrypt_payload
+from utils.encryption import encrypt_data, decrypt_data
 from models.user_model import UserModel
 from config import JWT_SECRET, JWT_EXPIRY
 from functools import wraps
@@ -36,7 +36,7 @@ def token_required(f):
                 raise Exception('No payload found')
 
             # 3. Payload decrypt karo
-            current_user = decrypt_payload(encrypted_data)
+            current_user = decrypt_data(encrypted_data)
         except jwt.ExpiredSignatureError:
             return jsonify({
                 'success': False,
@@ -135,7 +135,7 @@ class AuthController:
         }
 
         # 4.2 Payload AES encrypt karo
-        encrypted_data = encrypt_payload(user_payload)
+        encrypted_data = encrypt_data(user_payload)
 
         # 4.3 Encrypted data JWT mein daalo
         jwt_payload = {
