@@ -1,4 +1,5 @@
 # controllers/auth_controller.py
+from utils.encryption import encrypt_payload, decrypt_payload
 from models.user_model import UserModel
 from config import JWT_SECRET, JWT_EXPIRY
 from functools import wraps
@@ -24,9 +25,18 @@ def token_required(f):
             }), 401
 
         try:
-            # Token decode karo
-            data = jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
-            current_user = data
+            # 1. JWT verify karo — signature check
+            decoded = jwt.decode(
+                token, JWT_SECRET, algorithms=['HS256']
+            )
+
+            # 2. Encrypted payload nikalo
+            encrypted_data = decoded.get('data')
+            if not encrypted_data:
+                raise Exception('No payload found')
+
+            # 3. Payload decrypt karo
+            current_user = decrypt_payload(encrypted_data)
         except jwt.ExpiredSignatureError:
             return jsonify({
                 'success': False,
@@ -36,6 +46,11 @@ def token_required(f):
             return jsonify({
                 'success': False,
                 'message': 'Invalid token'
+            }), 401
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'message': f'Token invalid: {str(e)}'
             }), 401
 
         return f(current_user, *args, **kwargs)
@@ -108,20 +123,29 @@ class AuthController:
                 'message': 'Invalid email or password'
             }), 401
 
-        # 4. JWT Token generate karo
-        payload = {
-            'user_id' : user['id'],
-            'name'    : user['name'],
-            'email'   : user['email'],
-            'user_role' : user['user_role'],
-            'exp'     : datetime.datetime.utcnow() +
-                        datetime.timedelta(hours=JWT_EXPIRY)
-        }
-        token = jwt.encode(payload, JWT_SECRET, algorithm='HS256')
-
         # Login status TRUE karo
         UserModel.update_login_status(user['id'], True)
 
+        # 4.1 Sensitive payload banao
+        user_payload = {
+            'user_id'  : user['id'],
+            'name'     : user['name'],
+            'email'    : user['email'],
+            'user_role': user['user_role']
+        }
+
+        # 4.2 Payload AES encrypt karo
+        encrypted_data = encrypt_payload(user_payload)
+
+        # 4.3 Encrypted data JWT mein daalo
+        jwt_payload = {
+            'data': encrypted_data,    # ← actual data encrypted hai
+            'exp' : datetime.datetime.utcnow() +
+                    datetime.timedelta(hours=JWT_EXPIRY)
+        }
+
+        token = jwt.encode(jwt_payload, JWT_SECRET, algorithm='HS256')
+        
         # 5. Token return karo
         return jsonify({
             'success' : True,
